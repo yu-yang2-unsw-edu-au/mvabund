@@ -6,8 +6,6 @@
 #include <gsl/gsl_sf_gamma.h>
 #include <gsl/gsl_sf_psi.h>
 #include <string.h>
-#include <gsl/gsl_spmatrix.h>
-#include <gsl/gsl_spblas.h> 
 #include "multi_thread.h"
 #include "utility.h"
 
@@ -15,7 +13,7 @@
 // stabilitiy
 
 glm::glm(const reg_Method *mm)
-    : mmRef(mm), Yref(NULL), Xref(NULL), Xrefsp(NULL), XrefspT(NULL), spms_(NULL), Oref(NULL), Beta(NULL), varBeta(NULL),
+    : mmRef(mm), Yref(NULL), Xref(NULL), Oref(NULL), Beta(NULL), varBeta(NULL),
       Mu(NULL), Eta(NULL), Res(NULL), Var(NULL), wHalf(NULL), sqrt1_Hii(NULL),
       PitRes(NULL), theta(NULL), ll(NULL), dev(NULL), aic(NULL),
       iterconv(NULL) {
@@ -52,10 +50,6 @@ NBinGlm::~NBinGlm() {}
 void glm::releaseGlm(void) {
   if (Xref != NULL)
     gsl_matrix_free(Xref);
-  if (Xrefsp != NULL)
-    gsl_spmatrix_free(Xrefsp);  
-  if (XrefspT != NULL)
-    gsl_spmatrix_free(XrefspT);  
  if (Yref != NULL)
     gsl_matrix_free(Yref);
   if (Oref != NULL)
@@ -88,7 +82,6 @@ void glm::releaseGlm(void) {
     delete[] iterconv;
   if (aic != NULL)
     delete[] aic;
-  if (spms_ != NULL) delete spms_;
 }
 
 void glm::initialGlm(gsl_matrix *Y, gsl_matrix *X, gsl_matrix *O,
@@ -110,11 +103,6 @@ void glm::initialGlm(gsl_matrix *Y, gsl_matrix *X, gsl_matrix *O,
 
   Xref = gsl_matrix_alloc(nRows, nParams);
   gsl_matrix_memcpy(Xref, X);
-  Xrefsp = gsl_spmatrix_alloc(nRows,nParams);
-  gsl_spmatrix_d2sp(Xrefsp, Xref);
-  XrefspT = gsl_spmatrix_alloc(nParams, nRows);
-  gsl_spmatrix_transpose_memcpy(XrefspT, Xrefsp);
-  spms_ = new BetaSpmSol(nRows, nParams, Xrefsp, XrefspT);
 
   Yref = gsl_matrix_alloc(nRows, nVars);
   gsl_matrix_memcpy(Yref, Y);
@@ -238,24 +226,14 @@ void glm::updateGlmInfo(gsl_matrix *Y, gsl_matrix *X, gsl_matrix *O, gsl_matrix 
     if (X != NULL) {
       if (X->size1 != Xref->size1 || X->size2 != Xref->size2) {
         gsl_matrix_free(Xref);
-        if (Xrefsp != NULL) gsl_spmatrix_free(Xrefsp); 
-        if (XrefspT != NULL) gsl_spmatrix_free(XrefspT); 
         if (Beta != NULL) gsl_matrix_free(Beta);
         nParams = X->size2;
         nRows = X->size1;
         Xref = gsl_matrix_alloc(nRows, nParams);
-        Xrefsp = gsl_spmatrix_alloc(nRows,nParams);
-        XrefspT = gsl_spmatrix_alloc(nParams, nRows);
         Beta = gsl_matrix_alloc(nParams, nVars);
       }
 
       gsl_matrix_memcpy(Xref, X);
-      gsl_spmatrix_d2sp(Xrefsp, Xref);
-      gsl_spmatrix_transpose_memcpy(XrefspT, Xrefsp);
-      if (spms_ != NULL) delete spms_;
-      spms_ = new BetaSpmSol(nRows, nParams, Xrefsp, XrefspT);
-      //if (varBeta != NULL) gsl_matrix_free(varBeta);
-      //varBeta = gsl_matrix_alloc(nParams, nVars);
       gsl_matrix_set_zero(varBeta);  
     }
 
@@ -471,7 +449,6 @@ int PoissonGlm::EstIRLS(gsl_matrix *Y, gsl_matrix *X, gsl_matrix *O,
 
 int PoissonGlm::betaEst(unsigned int id, unsigned int iter, double *tol,
                         double th) {
-  //return betaEstSp(id, iter, tol, th); this is for the sparse solver     
   gsl_set_error_handler_off();
   int status, isValid;
   // unsigned int j, ngoodobs;
@@ -549,7 +526,6 @@ int PoissonGlm::betaEst(unsigned int id, unsigned int iter, double *tol,
       gsl_linalg_cholesky_decomp(XwX);
       //printf("retry to solve XwXb=Xwz\n");
     }
-    //gsl_spblas_dgemv(CblasTrans, 1.0, WXsp, z, 0.0, Xwz);
     gsl_blas_dgemv(CblasTrans, 1.0, WX, z, 0.0, Xwz);
     gsl_linalg_cholesky_solve(XwX, Xwz, &bj.vector);
     
@@ -612,129 +588,11 @@ int PoissonGlm::betaEst(unsigned int id, unsigned int iter, double *tol,
   gsl_matrix_free(XwXcp);
   return step;
 }
-/*
-int PoissonGlm::betaEstSp(unsigned int id, unsigned int iter, double *tol,
-                        double th) {
-  gsl_set_error_handler_off();
-  int status, isValid;
-  // unsigned int j, ngoodobs;
-  unsigned int i, step, step1;
-  double wij, zij, eij, mij, yij; //, bij;
-  double dev_old, dev_grad = 1.0;
-  gsl_vector *z = gsl_vector_alloc(nRows);
-  gsl_vector *Xwz = gsl_vector_alloc(nParams);
-  //gsl_spmatrix* WXsp = spms_->WXsp_; 
-  //gsl_spmatrix* XwXsp = spms_->XwXsp_;
-  gsl_spmatrix* XrefspC  = spms_->XrefspC_;
-  gsl_spmatrix* XrefspTC = spms_->XrefspTC_;
-  gsl_vector* W = spms_->W_;
-
-  gsl_vector *coef_old = gsl_vector_alloc(nParams);
-  gsl_vector_view bj = gsl_matrix_column(Beta, id);
-  // Main Loop of IRLS begins
-  step = 0;
-  *tol = 1.0;
-  //double residual;
-  gsl_vector_memcpy(coef_old, &bj.vector);
-  gsl_splinalg_itersolve *work = spms_->work_;
-  gsl_spmatrix* WXspC = spms_->WXspC_;
-  gsl_spmatrix* XwXspC = spms_->XwXspC_;
-  while (step < iter) {
-    for (i = 0; i < nRows; i++) {
-      yij = gsl_matrix_get(Yref, i, id);
-      eij = gsl_matrix_get(Eta, i, id);
-      mij = gsl_matrix_get(Mu, i, id);
-      zij = eij + (yij - mij) * LinkDash(mij);
-      if (Oref != NULL) {
-        zij = zij - gsl_matrix_get(Oref, i, id);
-      }
-      // wt=sqrt(weifunc);
-      wij = weifunc(mij, th);
-      // W*z[good]
-      gsl_vector_set(z, i,  wij*zij);
-      gsl_vector_set(W, i, wij);
-    }
-    const size_t max_iter = 1000; // maximum iterations
-    size_t iter1 = 0;
-    gsl_spmatrix_memcpy(WXspC, XrefspC);
-     my_spmatrix_scale_row_ccs_double(WXspC, W);
-    gsl_spblas_dgemm(1.0, XrefspTC, WXspC, XwXspC);
-    gsl_spblas_dgemv(CblasNoTrans, 1.0, XrefspTC, z, 0.0, Xwz);
-    do {
-        status = gsl_splinalg_itersolve_iterate(XwXspC, Xwz, 0.001, &bj.vector, work);
-        //residual = gsl_splinalg_itersolve_normr(work);
-    } while (status != GSL_SUCCESS && ++iter1 < max_iter);
-    
-    // Given bj, update eta, mu
-    dev_old = dev[id];
-    isValid = predict(bj, id, th);
-    dev_grad = (dev[id] - dev_old) / (ABS(dev[id]) + 0.1);
-    *(tol) = ABS(dev_grad);
-
-    step1 = 0;
-    while ((dev_grad > eps) & (step > 1)) {
-      gsl_vector_add(&bj.vector, coef_old);
-      gsl_vector_scale(&bj.vector, 0.5);
-      //     dev_old=dev[id];
-      isValid = predict(bj, id, th);
-      dev_grad = (dev[id] - dev_old) / (ABS(dev[id]) + 0.1);
-      *tol = ABS(dev_grad);
-      if (*tol < eps)
-        break;
-      step1++;
-      if (step1 > 10) {
-        break;
-      }
-    }
-    if (isValid == TRUE)
-      gsl_vector_memcpy(coef_old, &bj.vector);
-
-    step++;
-    if (*tol < eps)
-      break;
-  }
-  
-  gsl_vector_free(z);
-  gsl_vector_free(Xwz);
-  gsl_vector_free(coef_old);
-  
-  return step;
-}
-*/
 
 int PoissonGlm::update(gsl_vector *bj, unsigned int id) {
   if (nRows == 0) return TRUE;
   int isValid = TRUE;
   unsigned int i;
-  /*
-  double* eij;
-  double* mij;
-  gsl_vector_view xi;
-  double link_maxtol = link(maxtol);
-  double link_mintol = link(mintol);
-
-  gsl_vector_view Ev = gsl_matrix_column(Eta, id);
-  gsl_spblas_dgemv(CblasNoTrans, 1.0, Xrefsp, bj, 0.0, &Ev.vector);
-
-  if (Oref != NULL) {
-    xi = gsl_matrix_column(Oref, id);
-    gsl_vector_add(&Ev.vector, &xi.vector);
-  }
-  for (i = 0;i < nRows; ++i) {
-    eij = gsl_matrix_ptr(Eta, i, id);
-    mij = gsl_matrix_ptr(Mu, i, id);
-    if (*eij > link_maxtol) {
-      *eij = link_maxtol;
-      *mij = maxtol;
-      isValid = FALSE;
-    } else if (*eij < link_mintol) {
-      *eij = link_mintol;
-      *mij = mintol;
-      isValid = FALSE;
-    } else {
-      *mij = invLink(*eij);
-    }
-  }*/
 	double eij, mij;
   gsl_vector_view xi;
 

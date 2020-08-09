@@ -13,48 +13,6 @@ int GeeScore(gsl_matrix *, glm *, gsl_vector *, gsl_matrix *, mv_Method* tm);
 int GeeLR(glm *PtrAlt, glm *PtrNull, gsl_vector *teststat, mv_Method* tm);
 
 pthread_mutex_t anova_mutex = PTHREAD_MUTEX_INITIALIZER;
-/*
-int run_task(int total, int num_cores, void* task(void* data), void* data) {
-   int ret;
-   int i;
-   pthread_t* threads = (pthread_t*) malloc(total* sizeof(pthread_t));
-   pthread_attr_t attr;
-   void *status;
-   int task_num = 0;
-   for( i = 0; i < total; i+= num_cores) {
-      task_num = std::min(num_cores, total-num_cores);
-      for (int j = 0; j < task_num; ++j) {
-        thread_data* thd = new thread_data[1];
-        thd->thread_id = (pthread_t) (i+j);
-        thd->data  = data;
-        ret = pthread_create(&threads[i+j], &attr, task, thd);
-        if (ret) {
-           printf("Error:unable to create thread %d err code %d\n", i+j, ret);
-           return -1;
-        }
-      }
-     for(int j = 0; j < task_num; j++) {
-        ret = pthread_join(threads[i+j], &status);
-        if (ret) {
-           printf("Error:unable to join thread %d\n", i);
-           return -1;
-        }
-     }
-   }
-
-  free(threads);
-  return 0;
-}
-
-void *run_anova_mt(void *anova_pack) {
-  anova_boot* data = (anova_boot*) anova_pack;
-  GlmTest* glmtest =  data->gtest;
-  glm* fit = data->fit;
-  gsl_matrix* matrix = data->isXvarIn;
-  glmtest->anova(fit, matrix);
-  return NULL;
-}
-*/
 void *anovaboot_mt(void *anova_pack) {
   anovaboot* th_data = (anovaboot*) anova_pack;
   glm* fit = th_data->fit;

@@ -422,7 +422,6 @@ List RtoSmryCpp(const List &rparam, RcppGSL::Matrix &Y, RcppGSL::Matrix &X,
 }
 
 
-/* proflie function 
 // [[Rcpp::export]]
 SEXP start_profiler(SEXP str) {
   ProfilerStart(as<const char*>(str));
@@ -435,4 +434,3 @@ SEXP stop_profiler() {
   return R_NilValue;
 }
 
- */

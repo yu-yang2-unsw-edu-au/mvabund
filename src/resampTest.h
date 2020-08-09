@@ -20,7 +20,6 @@
 #include <gsl/gsl_linalg.h>
 #include <gsl/gsl_math.h>
 #include <gsl/gsl_matrix.h>
-#include <gsl/gsl_spmatrix.h>
 #include <gsl/gsl_permutation.h>
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_rng.h>
@@ -36,7 +35,6 @@
 // rmv.h
 #include <gsl/gsl_eigen.h>
 #include <gsl/gsl_sf_gamma.h>
-#include <gsl/gsl_splinalg.h>
 #include "utility.h"
 
 // return status
@@ -259,9 +257,6 @@ public:
   const reg_Method *mmRef;
   gsl_matrix *Yref;
   gsl_matrix *Xref;
-  gsl_spmatrix *Xrefsp;
-  gsl_spmatrix *XrefspT;
-  BetaSpmSol* spms_;
 
   gsl_matrix *Oref;
   // return properties
