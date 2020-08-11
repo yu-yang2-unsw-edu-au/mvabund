@@ -421,16 +421,3 @@ List RtoSmryCpp(const List &rparam, RcppGSL::Matrix &Y, RcppGSL::Matrix &X,
   return rs;
 }
 
-
-// [[Rcpp::export]]
-SEXP start_profiler(SEXP str) {
-  ProfilerStart(as<const char*>(str));
-  return R_NilValue;
-}
-
-// [[Rcpp::export]]
-SEXP stop_profiler() {
-  ProfilerStop();
-  return R_NilValue;
-}
-

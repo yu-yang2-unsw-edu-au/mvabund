@@ -21,11 +21,3 @@ RtoSmryCpp <- function(rparam, Y, X, bID) {
     .Call('_mvabund_RtoSmryCpp', PACKAGE = 'mvabund', rparam, Y, X, bID)
 }
 
-start_profiler <- function(str) {
-    .Call('_mvabund_start_profiler', PACKAGE = 'mvabund', str)
-}
-
-stop_profiler <- function() {
-    .Call('_mvabund_stop_profiler', PACKAGE = 'mvabund')
-}
-

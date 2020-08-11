@@ -176,3 +176,5 @@ inst/doc
 
 #Rcpp
 *.o
+
+*.rds
